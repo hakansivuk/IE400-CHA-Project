@@ -1,5 +1,7 @@
 import sys
 import pandas as pd
+from ortools.linear_solver import pywraplp
+from QuestionModels import FirstQuestionModel, SecondQuestionModel, ThirdQuestionModel, FourthQuestionModel
 
 
 def main():
@@ -7,7 +9,7 @@ def main():
     # define your variables here
     defDataName = "data.xlsx"
     problemIndex = -1
-    problemList = [problem1, problem2, problem3, problem4]
+    problemList = []
 
     noOfArguments = len(sys.argv) - 1
     if (noOfArguments >= 1):
@@ -23,35 +25,17 @@ def main():
     print("Problem index to run arg: {}".format(problemIndex))
 
     # prepare the model
-    solverModel = prepareModel(pathToData)
+    problemList.append(FirstQuestionModel(pathToData))
+    problemList.append(SecondQuestionModel(pathToData))
+    problemList.append(ThirdQuestionModel(pathToData))
+    problemList.append(FourthQuestionModel(pathToData))
 
     if (problemIndex > 0):
-        problemList[problemIndex](solverModel)
+        problemList[problemIndex].solveProblem()
         return
     else:
         for i in range(4):
-            problemList[i](solverModel)
-
-
-def prepareModel(pathToData):
-    print("Preparing model")
-    return None
-
-
-def problem1(solver):
-    print("Problem 1")
-
-
-def problem2(solver):
-    print("Problem 2")
-
-
-def problem3(solver):
-    print("Problem 3")
-
-
-def problem4(solver):
-    print("Problem 4")
+            problemList[i].solveProblem()
 
 
 if __name__ == '__main__':
