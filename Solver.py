@@ -1,13 +1,11 @@
 import sys
-import pandas as pd
-from ortools.linear_solver import pywraplp
 from QuestionModels import FirstQuestionModel, SecondQuestionModel, ThirdQuestionModel, FourthQuestionModel
 
 
 def main():
 
     # define your variables here
-    defDataName = "data.xlsx"
+    defDataName = "data"
     problemIndex = -1
     problemList = []
 
@@ -20,8 +18,8 @@ def main():
     if (noOfArguments >= 2):
         problemIndex = int(sys.argv[2]) - 1
 
-    pathToData = "./DataFolder/" + defDataName
-    print("Data file to load is: {}".format(pathToData))
+    pathToData = "./DataFolder/" + defDataName + ".xlsx"
+    print("\nData file to load is: {}".format(pathToData))
     print("Problem index to run arg: {}".format(problemIndex))
 
     # prepare the model
@@ -30,7 +28,7 @@ def main():
     problemList.append(ThirdQuestionModel(pathToData))
     problemList.append(FourthQuestionModel(pathToData))
 
-    if (problemIndex > 0):
+    if (problemIndex >= 0):
         problemList[problemIndex].solveProblem()
         return
     else:
