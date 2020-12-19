@@ -322,29 +322,29 @@ class FourthQuestionModel(QuestionModel):
         print()
         # define model
         self.solver = pywraplp.Solver.CreateSolver("SCIP")
-        self.numOfCities = len(self.data)
-        self.numOfVolunteers = self.numOfCities - 1
-        self.speedOfSnowplow = 40
-        self.timeLimit = 10
+        self.numOfCities = len(self.data) # 30
+        self.numOfVolunteers = self.numOfCities - 1 # 29 (We can solve the problem at most 29 volunteer)
+        self.speedOfSnowplow = 40 # Speed of the snowplow
+        self.timeLimit = 10 # Santa wants volunteer to return to node 1 at most 10 hours
 
         # define variables
         infinity = self.solver.infinity()
 
-        self.exactNumOfVolunteers = self.solver.IntVar(0, infinity, '')
+        self.exactNumOfVolunteers = self.solver.IntVar(0, self.numOfVolunteers, '') # Sum of y_k
 
-        self.x = []
+        self.x = [] # x[i][j][k]: number of times the volunteer k uses the road from village i to village j
         for i in range(self.numOfCities):
             x_i = []
             for j in range(self.numOfCities):
                 x_i_j = []
                 for k in range(self.numOfVolunteers):
-                    x_i_j_k = self.solver.IntVar(0, infinity, '')
+                    x_i_j_k = self.solver.IntVar(0, self.numOfCities, '')
                     x_i_j.append(x_i_j_k)
                 x_i.append(x_i_j)
             self.x.append(x_i)
         print('Dimension of x is', len(self.x), len(self.x[0]), len(self.x[0][0]))
         
-        self.y = []
+        self.y = [] # y_k = 1 if the volunteer k works, 0 otherwise
         for k in range(self.numOfVolunteers):
             y_k = self.solver.IntVar(0, 1, '')
             self.y.append(y_k)
@@ -353,34 +353,42 @@ class FourthQuestionModel(QuestionModel):
         print('Number of variables =', self.solver.NumVariables())
 
         # define constraints
+
+        # x[i][j][k] <= 29 * y[k] for all i, j, k
         for i in range(self.numOfCities):
             for j in range(self.numOfCities):
                 for k in range(self.numOfVolunteers):
-                    self.solver.Add(self.x[i][j][k] <= self.y[k])
+                    self.solver.Add(self.x[i][j][k] <= (self.numOfCities - 1) * self.y[k])
         
+        # Each volunteer can travel at most 400 km
         for k in range(self.numOfVolunteers):
             distance_k = self.solver.Sum([self.solver.Sum([self.data[i][j] * self.x[i][j][k] for j in range(self.numOfCities)]) for i in range(self.numOfCities)])
             self.solver.Add(distance_k <= self.timeLimit * self.speedOfSnowplow)
 
+        # For volunteer k, it should go out from node 1 once if he works
         for k in range(self.numOfVolunteers):
             self.solver.Add(self.solver.Sum([self.x[0][j][k] for j in range(self.numOfCities)]) == self.y[k])
 
+        # For volunteer k, it should come in to node 1 once if he works
         for k in range(self.numOfVolunteers):
             self.solver.Add(self.solver.Sum([self.x[i][0][k] for i in range(self.numOfCities)]) == self.y[k])
 
+        # Each village should be visited at least 1 time
         for j in range(self.numOfCities):
             visit_j = self.solver.Sum([self.solver.Sum([self.x[i][j][k] for k in range(self.numOfVolunteers)]) for i in range(self.numOfCities)])
             self.solver.Add(visit_j >= 1)
 
+        # Each volunteer traverse a cycle
         for j in range(self.numOfCities):
             for k in range(self.numOfVolunteers):
-                self.solver.Add(self.solver.Sum([self.x[i][j][k] for i in range(self.numOfCities)]) == 0)
+                self.solver.Add(self.solver.Sum([(self.x[i][j][k] - self.x[j][i][k]) for i in range(self.numOfCities)]) == 0)
         
+        # There is no road between node i and node i
         for i in range(self.numOfCities):
             for k in range(self.numOfVolunteers):
                 self.solver.Add(self.x[i][i][k] == 0)
         
-        self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum(self.y[k] for k in range(self.numOfVolunteers)))
+        self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum([self.y[k] for k in range(self.numOfVolunteers)]))
 
         # create objective function
         self.solver.Minimize(self.exactNumOfVolunteers)
