@@ -14,14 +14,14 @@ class QuestionModel(ABC):
         self.data = dfs["d"]
         self.probs = dfs["p"]
 
-    def solveProblem(self):
+    def solveProblem(self, printLock):
         self.configureModel()
-        self.runModel()
+        self.runModel(printLock)
 
     # abstract method
     def configureModel(self):
         pass
 
     # abstract method
-    def runModel(self):
+    def runModel(self, printLock):
         pass
