@@ -59,13 +59,6 @@ class FirstQuestionModel(QuestionModel):
         # OBJECTIVE FUNCTION
         self.solver.Minimize(self.minDistance)
 
-        """
-        objective_terms = []
-        for i in range(self.numOfCities):
-            for j in range(self.numOfCities):
-                objective_terms.append(self.center[i] * self.data[i][j])
-        self.solver.Minimize(self.solver.Sum(objective_terms))"""
-
         # FOR REFERANCE
         """self.solver = pywraplp.Solver.CreateSolver('SCIP')
         self.costs = [
@@ -108,6 +101,7 @@ class FirstQuestionModel(QuestionModel):
         # run the model
         status = self.solver.Solve()
 
+        # print the result
         printLock.acquire()
         print("\n********* Start of Problem 1 *********\n")
 
@@ -126,17 +120,7 @@ class FirstQuestionModel(QuestionModel):
         else:
             print(
                 "Solver could not solve the problem 1. The given data could be infeasible...\n")
-        # print the result
-        """status = self.solver.Solve()
-        if status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE:
-            print('Total cost = ', self.solver.Objective().Value(), '\n')
-        for i in range(self.num_workers):
-            for j in range(self.num_tasks):
-                # Test if x[i,j] is 1 (with tolerance for floating point arithmetic).
-                if self.x[i, j].solution_value() > 0.5:
-                    print('Worker %d assigned to task %d.  Cost = %d' %
-                    (i, j, self.costs[i][j]))
-        """
+
         print("\n\n********* End of Problem 1 *********\n")
         printLock.release()
 
@@ -229,7 +213,7 @@ class SecondQuestionModel(QuestionModel):
             print(
                 "Solver could not solve the problem 1. The given data could be infeasible...\n")
 
-        print("\n********* End of Problem 2 *********\n")
+        print("\n\n********* End of Problem 2 *********\n")
         printLock.release()
 
 
@@ -319,7 +303,7 @@ class FourthQuestionModel(QuestionModel):
 
     # override method
     def configureModel(self):
-        print()
+
         # define model
         self.solver = pywraplp.Solver.CreateSolver("SCIP")
         self.numOfCities = len(self.data)
@@ -342,8 +326,9 @@ class FourthQuestionModel(QuestionModel):
                     x_i_j.append(x_i_j_k)
                 x_i.append(x_i_j)
             self.x.append(x_i)
-        print('Dimension of x is', len(self.x), len(self.x[0]), len(self.x[0][0]))
-        
+        print('Dimension of x is', len(self.x),
+              len(self.x[0]), len(self.x[0][0]))
+
         self.y = []
         for k in range(self.numOfVolunteers):
             y_k = self.solver.IntVar(0, 1, '')
@@ -357,44 +342,53 @@ class FourthQuestionModel(QuestionModel):
             for j in range(self.numOfCities):
                 for k in range(self.numOfVolunteers):
                     self.solver.Add(self.x[i][j][k] <= self.y[k])
-        
-        for k in range(self.numOfVolunteers):
-            distance_k = self.solver.Sum([self.solver.Sum([self.data[i][j] * self.x[i][j][k] for j in range(self.numOfCities)]) for i in range(self.numOfCities)])
-            self.solver.Add(distance_k <= self.timeLimit * self.speedOfSnowplow)
 
         for k in range(self.numOfVolunteers):
-            self.solver.Add(self.solver.Sum([self.x[0][j][k] for j in range(self.numOfCities)]) == self.y[k])
+            distance_k = self.solver.Sum([self.solver.Sum(
+                [self.data[i][j] * self.x[i][j][k] for j in range(self.numOfCities)]) for i in range(self.numOfCities)])
+            self.solver.Add(distance_k <= self.timeLimit *
+                            self.speedOfSnowplow)
 
         for k in range(self.numOfVolunteers):
-            self.solver.Add(self.solver.Sum([self.x[i][0][k] for i in range(self.numOfCities)]) == self.y[k])
+            self.solver.Add(self.solver.Sum(
+                [self.x[0][j][k] for j in range(self.numOfCities)]) == self.y[k])
+
+        for k in range(self.numOfVolunteers):
+            self.solver.Add(self.solver.Sum(
+                [self.x[i][0][k] for i in range(self.numOfCities)]) == self.y[k])
 
         for j in range(self.numOfCities):
-            visit_j = self.solver.Sum([self.solver.Sum([self.x[i][j][k] for k in range(self.numOfVolunteers)]) for i in range(self.numOfCities)])
+            visit_j = self.solver.Sum([self.solver.Sum([self.x[i][j][k] for k in range(
+                self.numOfVolunteers)]) for i in range(self.numOfCities)])
             self.solver.Add(visit_j >= 1)
 
         for j in range(self.numOfCities):
             for k in range(self.numOfVolunteers):
-                self.solver.Add(self.solver.Sum([self.x[i][j][k] for i in range(self.numOfCities)]) == 0)
-        
+                self.solver.Add(self.solver.Sum(
+                    [self.x[i][j][k] for i in range(self.numOfCities)]) == 0)
+
         for i in range(self.numOfCities):
             for k in range(self.numOfVolunteers):
                 self.solver.Add(self.x[i][i][k] == 0)
-        
-        self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum(self.y[k] for k in range(self.numOfVolunteers)))
+
+        self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum(
+            self.y[k] for k in range(self.numOfVolunteers)))
 
         # create objective function
         self.solver.Minimize(self.exactNumOfVolunteers)
 
         # abstract method
 
-        # override method
+    # override method
     def runModel(self, printLock):
-        # run the model
 
+        # run the model
+        status = self.solver.Solve()
+
+        # print the result
         printLock.acquire()
         print("\n********* Start of Problem 4 *********\n")
-        status = self.solver.Solve()
-        
+
         if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
 
             print("The minumum distance a parent should work is = ",
@@ -411,16 +405,6 @@ class FourthQuestionModel(QuestionModel):
         else:
             print(
                 "Solver could not solve the problem 4. The given data could be infeasible...\n")
-        # print the result
-        """status = self.solver.Solve()
-        if status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE:
-            print('Total cost = ', self.solver.Objective().Value(), '\n')
-        for i in range(self.num_workers):
-            for j in range(self.num_tasks):
-                # Test if x[i,j] is 1 (with tolerance for floating point arithmetic).
-                if self.x[i, j].solution_value() > 0.5:
-                    print('Worker %d assigned to task %d.  Cost = %d' %
-                    (i, j, self.costs[i][j]))
-        """
+
         print("\n\n********* End of Problem 4 *********\n")
         printLock.release()
