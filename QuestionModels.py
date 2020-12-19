@@ -148,25 +148,86 @@ class SecondQuestionModel(QuestionModel):
 
     # override method
     def configureModel(self):
-        print()
-        # define model
 
-        # define variables
+        # DEFINE MODEL
+        self.solver = pywraplp.Solver.CreateSolver("SCIP")
+        self.numOfCities = len(self.data)
 
-        # define constraints
+        # DEFINE VARIABLES
 
-        # create objective function
+        # distance a parent walks that should be minimized
+        infinity = self.solver.infinity()
+        self.minDistance = self.solver.NumVar(0, infinity, "")
 
-        # abstract method
+        # if village i is selected as center
+        self.center = []
+        for i in range(self.numOfCities):
+            self.center.append(self.solver.IntVar(0, 1, ""))
 
-        # override method
+        # x[i, j] is an array of 0-1 variables, which will be 1
+        # if center i is assigned village j
+        self.centerAssignment = []
+        for i in range(self.numOfCities):
+            self.centerAssignment.append([])
+            for j in range(self.numOfCities):
+                self.centerAssignment[i].append(self.solver.IntVar(0, 1, ""))
+
+        # DEFINE CONSTRAINTS
+
+        # There are exactly 4 centers
+        self.solver.Add(self.solver.Sum(
+            [self.center[i] for i in range(self.numOfCities)]) == 4)
+
+        # If a village is chosen as center
+        for i in range(self.numOfCities):
+            self.solver.Add(self.solver.Sum(
+                [self.centerAssignment[i][j] for j in range(self.numOfCities)]) <= 20 * self.center[i])
+
+        # only a single center is assigned to a village
+        for j in range(self.numOfCities):
+            self.solver.Add(self.solver.Sum(
+                [self.centerAssignment[i][j] for i in range(self.numOfCities)]) == 1)
+
+        # road must not be blocked
+        for i in range(self.numOfCities):
+            for j in range(self.numOfCities):
+                self.solver.Add(
+                    self.centerAssignment[i][j] * self.probs[i][j] <= 0.60)
+
+        # a parent walk distance must be minimized
+        for i in range(self.numOfCities):
+            for j in range(self.numOfCities):
+                self.solver.Add(
+                    self.centerAssignment[i][j] * self.data[i][j] <= self.minDistance)
+
+        # OBJECTIVE FUNCTION
+        self.solver.Minimize(self.minDistance)
+
+    # override method
     def runModel(self, printLock):
 
-        printLock.acquire()
-        print("\n********* Start of Problem 2 *********\n")
         # run the model
+        status = self.solver.Solve()
 
         # print the result
+        printLock.acquire()
+        print("\n********* Start of Problem 2 *********\n")
+
+        if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
+
+            print("The minumum distance a parent should work is = ",
+                  self.solver.Objective().Value())
+            for i in range(self.numOfCities):
+                # if chosen as center (with tolerance for floating point arithmetic)
+                if (self.center[i].solution_value() > 0.5):
+                    print("\nVillage %d is chosen as center" % (i + 1))
+                    print("\tAssigned villages are => ", end="")
+                    for j in range(self.numOfCities):
+                        if (self.centerAssignment[i][j].solution_value() > 0.5):
+                            print((j + 1), end="  -  ")
+        else:
+            print(
+                "Solver could not solve the problem 1. The given data could be infeasible...\n")
 
         print("\n********* End of Problem 2 *********\n")
         printLock.release()
