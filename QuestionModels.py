@@ -384,7 +384,8 @@ class FourthQuestionModel(QuestionModel):
             for k in range(self.numOfVolunteers):
                 self.solver.Add(self.x[i][i][k] == 0)
         
-        self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum([self.y[k] for k in range(self.numOfVolunteers)]))
+        self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum(
+            [self.y[k] for k in range(self.numOfVolunteers)]))
 
         # create objective function
         self.solver.Minimize(self.exactNumOfVolunteers)
