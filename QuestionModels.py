@@ -304,38 +304,83 @@ class FourthQuestionModel(QuestionModel):
     # override method
     def configureModel(self):
 
-        # define model
+        # DEFINE MODEL
         self.solver = pywraplp.Solver.CreateSolver("SCIP")
         self.numOfCities = len(self.data)
         self.numOfVolunteers = self.numOfCities - 1
         self.speedOfSnowplow = 40
         self.timeLimit = 10
+        self.distanceLimit = self.speedOfSnowplow * self.timeLimit
 
-        # define variables
+        # DEFINE VARIABLES
         infinity = self.solver.infinity()
 
-        self.exactNumOfVolunteers = self.solver.IntVar(0, infinity, '')
+        self.exactNumOfVolunteers = self.solver.IntVar(0, infinity, "")
 
-        self.x = []
-        for i in range(self.numOfCities):
-            x_i = []
-            for j in range(self.numOfCities):
-                x_i_j = []
-                for k in range(self.numOfVolunteers):
-                    x_i_j_k = self.solver.IntVar(0, infinity, '')
-                    x_i_j.append(x_i_j_k)
-                x_i.append(x_i_j)
-            self.x.append(x_i)
-        print('Dimension of x is', len(self.x),
-              len(self.x[0]), len(self.x[0][0]))
-
-        self.y = []
+        # Let x_k_i_j => volunteersToCities a variable where volunteer k visits city j from city i!
+        self.volunteersToCities = []
         for k in range(self.numOfVolunteers):
-            y_k = self.solver.IntVar(0, 1, '')
-            self.y.append(y_k)
-        print('Dimension of y is', len(self.y))
+            self.volunteersToCities.append([])
+            for i in range(self.numOfCities):
+                self.volunteersToCities[k].append([])
+                for j in range(self.numOfCities):
+                    self.volunteersToCities[k][i].append(
+                        self.solver.IntVar(0, 1, ""))
+        print("Dimension of x is", len(self.volunteersToCities),
+              len(self.volunteersToCities[0]), len(self.volunteersToCities[0][0]))
 
-        print('Number of variables =', self.solver.NumVariables())
+        # let volunteersUsed be 1 or 0 if any volunteer is sent a city
+        self.isVolunteerUsed = []
+        for k in range(self.numOfVolunteers):
+            self.isVolunteerUsed.append(self.solver.IntVar(0, 1, ""))
+
+        # DEFINE CONSTRAINTS
+
+        # find if a volunteer is assigned and used
+        for k in range(self.numOfVolunteers):
+            volunteerCityVisit = []
+            for i in range(self.numOfCities):
+                for j in range(self.numOfCities):
+                    volunteerCityVisit.append(self.volunteersToCities[k][i][j])
+
+            self.solver.Add(self.solver.Sum(volunteerCityVisit)
+                            <= self.numOfCities * self.isVolunteerUsed[k])
+
+        # each volunteer must travel a distance of <= speed * time
+        for k in range(self.numOfVolunteers):
+            volunteerDistanceTravelled = []
+            for i in range(self.numOfCities):
+                for j in range(self.numOfCities):
+                    volunteerDistanceTravelled.append(
+                        self.volunteersToCities[k][i][j] * self.data[i][j])
+
+            self.solver.Add(self.solver.Sum(volunteerDistanceTravelled)
+                            <= self.distanceLimit)
+
+        # a volunteer cannot visit the city they are at
+        for k in range(self.numOfVolunteers):
+            for i in range(self.numOfCities):
+                for j in range(self.numOfCities):
+                    if (i == j):
+                        self.solver.Add(self.volunteersToCities[k][i][j]
+                                        == 0)
+
+        # every volunteer can arrive city j from city i only once or they may not prefer to travel there at all
+        for k in range(self.numOfVolunteers):
+            for i in range(self.numOfCities):
+                self.solver.Add(self.solver.Sum(
+                    [self.volunteersToCities[k][i][j] for j in range(self.numOfCities)]) <= 1)
+
+        # every volunteer can leave city j to city i only once or they may not prefer to travel there at all
+        for k in range(self.numOfVolunteers):
+            for j in range(self.numOfCities):
+                self.solver.Add(self.solver.Sum(
+                    [self.volunteersToCities[k][i][j] for i in range(self.numOfCities)]) <= 1)
+
+        # we can allow subtours as that would be valid
+
+        # every city must be visited at least once
+        """
 
         # define constraints
         for i in range(self.numOfCities):
@@ -367,6 +412,7 @@ class FourthQuestionModel(QuestionModel):
                 self.solver.Add(self.solver.Sum(
                     [self.x[i][j][k] for i in range(self.numOfCities)]) == 0)
 
+        # volunteer cannot visit the city they are in
         for i in range(self.numOfCities):
             for k in range(self.numOfVolunteers):
                 self.solver.Add(self.x[i][i][k] == 0)
@@ -376,12 +422,12 @@ class FourthQuestionModel(QuestionModel):
 
         # create objective function
         self.solver.Minimize(self.exactNumOfVolunteers)
-
-        # abstract method
+        """
 
     # override method
     def runModel(self, printLock):
-
+        printLock.acquire()
+        """
         # run the model
         status = self.solver.Solve()
 
@@ -405,6 +451,6 @@ class FourthQuestionModel(QuestionModel):
         else:
             print(
                 "Solver could not solve the problem 4. The given data could be infeasible...\n")
-
+        """
         print("\n\n********* End of Problem 4 *********\n")
         printLock.release()
