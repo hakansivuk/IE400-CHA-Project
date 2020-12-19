@@ -211,24 +211,106 @@ class FourthQuestionModel(QuestionModel):
     def configureModel(self):
         print()
         # define model
+        self.solver = pywraplp.Solver.CreateSolver("SCIP")
+        self.numOfCities = len(self.data)
+        self.numOfVolunteers = self.numOfCities - 1
+        self.speedOfSnowplow = 40
+        self.timeLimit = 10
 
         # define variables
+        infinity = self.solver.infinity()
+
+        self.exactNumOfVolunteers = self.solver.IntVar(0, infinity, '')
+
+        self.x = []
+        for i in range(self.numOfCities):
+            x_i = []
+            for j in range(self.numOfCities):
+                x_i_j = []
+                for k in range(self.numOfVolunteers):
+                    x_i_j_k = self.solver.IntVar(0, infinity, '')
+                    x_i_j.append(x_i_j_k)
+                x_i.append(x_i_j)
+            self.x.append(x_i)
+        print('Dimension of x is', len(self.x), len(self.x[0]), len(self.x[0][0]))
+        
+        self.y = []
+        for k in range(self.numOfVolunteers):
+            y_k = self.solver.IntVar(0, 1, '')
+            self.y.append(y_k)
+        print('Dimension of y is', len(self.y))
+
+        print('Number of variables =', self.solver.NumVariables())
 
         # define constraints
+        for i in range(self.numOfCities):
+            for j in range(self.numOfCities):
+                for k in range(self.numOfVolunteers):
+                    self.solver.Add(self.x[i][j][k] <= self.y[k])
+        
+        for k in range(self.numOfVolunteers):
+            distance_k = self.solver.Sum([self.solver.Sum([self.data[i][j] * self.x[i][j][k] for j in range(self.numOfCities)]) for i in range(self.numOfCities)])
+            self.solver.Add(distance_k <= self.timeLimit * self.speedOfSnowplow)
+
+        for k in range(self.numOfVolunteers):
+            self.solver.Add(self.solver.Sum([self.x[0][j][k] for j in range(self.numOfCities)]) == self.y[k])
+
+        for k in range(self.numOfVolunteers):
+            self.solver.Add(self.solver.Sum([self.x[i][0][k] for i in range(self.numOfCities)]) == self.y[k])
+
+        for j in range(self.numOfCities):
+            visit_j = self.solver.Sum([self.solver.Sum([self.x[i][j][k] for k in range(self.numOfVolunteers)]) for i in range(self.numOfCities)])
+            self.solver.Add(visit_j >= 1)
+
+        for j in range(self.numOfCities):
+            for k in range(self.numOfVolunteers):
+                self.solver.Add(self.solver.Sum([self.x[i][j][k] for i in range(self.numOfCities)]) == 0)
+        
+        for i in range(self.numOfCities):
+            for k in range(self.numOfVolunteers):
+                self.solver.Add(self.x[i][i][k] == 0)
+        
+        self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum(self.y[k] for k in range(self.numOfVolunteers)))
 
         # create objective function
+        self.solver.Minimize(self.exactNumOfVolunteers)
 
         # abstract method
 
         # override method
-
     def runModel(self, printLock):
+        # run the model
+        status = self.solver.Solve()
 
         printLock.acquire()
         print("\n********* Start of Problem 4 *********\n")
-        # run the model
 
+        if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
+
+            print("The minumum distance a parent should work is = ",
+                  self.solver.Objective().Value())
+            for k in range(self.numOfVolunteers):
+                # if chosen as center (with tolerance for floating point arithmetic)
+                if (self.y[k].solution_value() > 0.5):
+                    print("\nVolunteer %d is chosen as center" % (k + 1))
+                    print("\tEdges that volunteer traverses are => ", end="")
+                for i in range(self.numOfCities):
+                    for j in range(self.numOfCities):
+                        if (self.x[i][j][k].solution_value() > 0.5):
+                            print(f'{i+1}, {j+1}', end="  -  ")
+        else:
+            print(
+                "Solver could not solve the problem 4. The given data could be infeasible...\n")
         # print the result
-
-        print("\n********* End of Problem 4 *********\n")
+        """status = self.solver.Solve()
+        if status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE:
+            print('Total cost = ', self.solver.Objective().Value(), '\n')
+        for i in range(self.num_workers):
+            for j in range(self.num_tasks):
+                # Test if x[i,j] is 1 (with tolerance for floating point arithmetic).
+                if self.x[i, j].solution_value() > 0.5:
+                    print('Worker %d assigned to task %d.  Cost = %d' %
+                    (i, j, self.costs[i][j]))
+        """
+        print("\n\n********* End of Problem 4 *********\n")
         printLock.release()
