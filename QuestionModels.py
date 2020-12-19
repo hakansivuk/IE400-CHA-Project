@@ -297,7 +297,7 @@ class ThirdQuestionModel(QuestionModel):
         if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
 
             print("Minimum time of travels is = ",
-                  self.solver.Objective().Value() / 40, "\n")
+                  self.solver.Objective().Value() / 40, "hours\n")
             a = 0
             for i in range(self.numOfCities):
                 for j in range(self.numOfCities):
