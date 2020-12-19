@@ -326,16 +326,10 @@ class FourthQuestionModel(QuestionModel):
                     x_i_j.append(x_i_j_k)
                 x_i.append(x_i_j)
             self.x.append(x_i)
-<<<<<<< HEAD
-        print('Dimension of x is', len(self.x), len(self.x[0]), len(self.x[0][0]))
-        
-        self.y = [] # y_k = 1 if the volunteer k works, 0 otherwise
-=======
         print('Dimension of x is', len(self.x),
               len(self.x[0]), len(self.x[0][0]))
 
         self.y = []
->>>>>>> 8f462f341d8ba88906c118c854f3d8cfccb3e1c8
         for k in range(self.numOfVolunteers):
             y_k = self.solver.IntVar(0, 1, '')
             self.y.append(y_k)
