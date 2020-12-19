@@ -138,22 +138,72 @@ class ThirdQuestionModel(QuestionModel):
 
     # override method
     def configureModel(self):
-        print()
         # define model
-
+        self.solver = pywraplp.Solver.CreateSolver("SCIP")
+        self.numOfCities = len(self.data)
         # define variables
+        self.x = {}
+        for i in range(self.numOfCities):
+            for j in range(self.numOfCities):
+                self.x[i, j] = self.solver.IntVar(0, 1, '')
+
+        self.u = {}
+        for j in range(1, self.numOfCities):
+            self.u[j] = self.solver.IntVar(1, self.numOfCities - 1, '')
+
 
         # define constraints
+        # each city entered once.
+        for i in range(self.numOfCities):
+            self.solver.Add(self.solver.Sum(
+                [self.x[i, j] for j in range(self.numOfCities)]) == 2)
+
+        # each city exited once.
+        for j in range(self.numOfCities):
+            self.solver.Add(self.solver.Sum(
+                [self.x[i, j] for i in range(self.numOfCities)]) == 2)
+
+        # MTZ constraint
+        for i in range(1, self.numOfCities):
+            for j in range(1, self.numOfCities):
+                if i != j:
+                    self.solver.Add(self.u[i] - self.u[j] + self.numOfCities*self.x[i,j] <= self.numOfCities - 1)
+                    
+
+        # Blocked roads
+        for i in range(self.numOfCities):
+            for j in range(self.numOfCities):
+                self.solver.Add(self.x[i,j] * self.probs[i][j] <= 0.6)
+            
 
         # create objective function
-
+        objective_terms = []
+        for i in range(self.numOfCities):
+            for j in range(self.numOfCities):
+                objective_terms.append(self.x[i,j] * self.data[i][j])
+        self.solver.Minimize(self.solver.Sum(objective_terms))
         # override method
 
     def runModel(self):
         print("\n********* Start of Problem 3 *********\n")
         # run the model
+        status = self.solver.Solve()
 
         # print the result
+        if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
+
+            print("Minimum time of travels is = ",
+                  self.solver.Objective().Value() / 40, "\n")
+            a = 0
+            for i in range(self.numOfCities):
+                for j in range(self.numOfCities):
+                    # if chosen as center (with tolerance for floating point arithmetic)
+                    if (self.x[a,j].solution_value() > 0.5 and a != j):
+                        print("Santa travelled from %d to %d" % (a + 1, j + 1))
+                        a = j
+                        break
+        else:
+            print("Solver could not solve the problem. The given data could be infeasible...\n")
 
         print("\n********* End of Problem 3 *********\n")
 
