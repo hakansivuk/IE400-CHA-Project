@@ -253,7 +253,6 @@ class ThirdQuestionModel(QuestionModel):
         for j in range(1, self.numOfCities):
             self.u[j] = self.solver.IntVar(1, self.numOfCities - 1, '')
 
-
         # define constraints
         # each city entered once.
         for i in range(self.numOfCities):
@@ -269,30 +268,29 @@ class ThirdQuestionModel(QuestionModel):
         for i in range(1, self.numOfCities):
             for j in range(1, self.numOfCities):
                 if i != j:
-                    self.solver.Add(self.u[i] - self.u[j] + self.numOfCities*self.x[i,j] <= self.numOfCities - 1)
-                    
+                    self.solver.Add(
+                        self.u[i] - self.u[j] + self.numOfCities*self.x[i, j] <= self.numOfCities - 1)
 
         # Blocked roads
         for i in range(self.numOfCities):
             for j in range(self.numOfCities):
-                self.solver.Add(self.x[i,j] * self.probs[i][j] <= 0.6)
-            
+                self.solver.Add(self.x[i, j] * self.probs[i][j] <= 0.6)
 
         # create objective function
         objective_terms = []
         for i in range(self.numOfCities):
             for j in range(self.numOfCities):
-                objective_terms.append(self.x[i,j] * self.data[i][j])
+                objective_terms.append(self.x[i, j] * self.data[i][j])
         self.solver.Minimize(self.solver.Sum(objective_terms))
-        # override method
 
+    # override method
     def runModel(self, printLock):
 
-        printLock.acquire()
-        print("\n********* Start of Problem 3 *********\n")
         # run the model
         status = self.solver.Solve()
 
+        printLock.acquire()
+        print("\n********* Start of Problem 3 *********\n")
         # print the result
         if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
 
@@ -302,12 +300,13 @@ class ThirdQuestionModel(QuestionModel):
             for i in range(self.numOfCities):
                 for j in range(self.numOfCities):
                     # if chosen as center (with tolerance for floating point arithmetic)
-                    if (self.x[a,j].solution_value() > 0.5 and a != j):
+                    if (self.x[a, j].solution_value() > 0.5 and a != j):
                         print("Santa travelled from %d to %d" % (a + 1, j + 1))
                         a = j
                         break
         else:
-            print("Solver could not solve the problem. The given data could be infeasible...\n")
+            print(
+                "Solver could not solve the problem. The given data could be infeasible...\n")
 
         print("\n********* End of Problem 3 *********\n")
         printLock.release()
@@ -335,11 +334,11 @@ class FourthQuestionModel(QuestionModel):
 
     def runModel(self, printLock):
 
-        printLock.acquire()
-        print("\n********* Start of Problem 4 *********\n")
         # run the model
 
         # print the result
+        printLock.acquire()
+        print("\n********* Start of Problem 4 *********\n")
 
         print("\n********* End of Problem 4 *********\n")
         printLock.release()
