@@ -1,5 +1,6 @@
 import sys
 from QuestionModels import FirstQuestionModel, SecondQuestionModel, ThirdQuestionModel, FourthQuestionModel
+import threading
 
 
 def main():
@@ -28,12 +29,24 @@ def main():
     problemList.append(ThirdQuestionModel(pathToData))
     problemList.append(FourthQuestionModel(pathToData))
 
+    threads = [None, None, None, None]
+
+    printLock = threading.Lock()
     if (problemIndex >= 0):
-        problemList[problemIndex].solveProblem()
+        threads[problemIndex] = threading.Thread(
+            target=problemList[problemIndex].solveProblem, args=(printLock,))
+        threads[problemIndex].start()
         return
     else:
         for i in range(4):
-            problemList[i].solveProblem()
+            threads[i] = threading.Thread(
+                target=problemList[i].solveProblem, args=(printLock,))
+            threads[i].start()
+
+    # wait for all problems to execute
+    for i in range(4):
+        if(threads[i] != None):
+            threads[i].join()
 
 
 if __name__ == '__main__':
