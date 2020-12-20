@@ -306,9 +306,9 @@ class FourthQuestionModel(QuestionModel):
 
         # define model
         self.solver = pywraplp.Solver.CreateSolver("SCIP")
-        self.numOfCities = 30#len(self.data) # 30
-        self.numOfVolunteers = 2 # 29 (We can solve the problem at most 29 volunteer)
-        self.speedOfSnowplow = 4000 # Speed of the snowplow
+        self.numOfCities = 11#len(self.data) # 30
+        self.numOfVolunteers = self.numOfCities - 1 #(We can solve the problem at most 29 volunteer)
+        self.speedOfSnowplow = 40 # Speed of the snowplow
         self.timeLimit = 10 # Santa wants volunteer to return to node 1 at most 10 hours
 
         # define variables
@@ -385,7 +385,10 @@ class FourthQuestionModel(QuestionModel):
         for i in range(1, self.numOfCities):
             for j in range(1, self.numOfCities):
                 for k in range(self.numOfVolunteers):
-                    self.solver.Add( (self.u[i, k] * self.z[i, k]) - (self.u[j, k] * self.z[j, k]) + (self.n[k] * self.x[i, j, k]) <= self.n[k] - self.y[k])
+                    u_z_i = self.u[i, k].solution_value() * self.z[i, k].solution_value()
+                    u_z_j = self.u[j, k].solution_value() * self.z[j, k].solution_value()
+                    n_x = self.n[k].solution_value() * self.x[i, j, k].solution_value()
+                    self.solver.Add( u_z_i - u_z_j + n_x <= self.n[k] - self.y[k])
         
         for i in range(1, self.numOfCities):
             for k in range(self.numOfVolunteers):
@@ -425,19 +428,34 @@ class FourthQuestionModel(QuestionModel):
 
             print("The minumum distance a parent should work is = ",
                   self.solver.Objective().Value())
-            """for k in range(self.numOfVolunteers):
+            for k in range(self.numOfVolunteers):
                 # if chosen as center (with tolerance for floating point arithmetic)
                 if (self.y[k].solution_value() > 0.5):
                     print("\nVolunteer %d is chosen" % (k + 1))
                     print("\tEdges that volunteer traverses are => ", end="")
                     print("Total distance is", self.solver.Sum([self.solver.Sum(
-                [self.data[i][j] * self.x[i][j][k] for j in range(self.numOfCities)]) for i in range(self.numOfCities)]).solution_value())
+                [self.data[i][j] * self.x[i, j, k] for j in range(self.numOfCities)]) for i in range(self.numOfCities)]).solution_value())
+                    print("Volunteer k's villages:")
+                    for i in range(1, self.numOfCities):
+                        if self.z[i, k].solution_value() > 0.5:
+                            print("Village", i + 1, ":", self.u[i, k].solution_value())
+
+
+                print('---------------------')
                 for i in range(self.numOfCities):
                     for j in range(self.numOfCities):
+                        if self.x[i, j, k].solution_value() > 0.5:
+                            print("Edge between:", i+1, j+1)
+            
+            for k in range(self.numOfVolunteers):
+                if self.y[k].solution_value() > 0.5:
+                    print("n for volunteer", k+1, "is", self.n[k].solution_value())
+                """for i in range(self.numOfCities):
+                    for j in range(self.numOfCities):
                         if (self.x[i][j][k].solution_value() > 0.5):
-                            print(f'{i+1}, {j+1}', end="  -  ")
+                            print(f'{i+1}, {j+1}', end="  -  ")"""
 
-                print('-------------------------')
+                """print('-------------------------')
                 for i in range(self.numOfCities - 1):
                     for k in range(self.numOfVolunteers):
                         if (self.u[i][k].solution_value() > 0.5):
