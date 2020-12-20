@@ -306,34 +306,37 @@ class FourthQuestionModel(QuestionModel):
 
         # define model
         self.solver = pywraplp.Solver.CreateSolver("SCIP")
-        self.numOfCities = len(self.data) # 30
-        self.numOfVolunteers = self.numOfCities - 1 # 29 (We can solve the problem at most 29 volunteer)
-        self.speedOfSnowplow = 40 # Speed of the snowplow
+        self.numOfCities = 30#len(self.data) # 30
+        self.numOfVolunteers = 2 # 29 (We can solve the problem at most 29 volunteer)
+        self.speedOfSnowplow = 4000 # Speed of the snowplow
         self.timeLimit = 10 # Santa wants volunteer to return to node 1 at most 10 hours
 
         # define variables
-        infinity = self.solver.infinity()
+        self.exactNumOfVolunteers = self.solver.IntVar(1, self.numOfVolunteers, '') # Sum of y_k
 
-        self.exactNumOfVolunteers = self.solver.IntVar(0, self.numOfVolunteers, '') # Sum of y_k
-
-        self.x = [] # x[i][j][k]: number of times the volunteer k uses the road from village i to village j
+        self.x = {} # x[i][j][k]: number of times the volunteer k uses the road from village i to village j
         for i in range(self.numOfCities):
-            x_i = []
             for j in range(self.numOfCities):
-                x_i_j = []
                 for k in range(self.numOfVolunteers):
-                    x_i_j_k = self.solver.IntVar(0, self.numOfCities, '')
-                    x_i_j.append(x_i_j_k)
-                x_i.append(x_i_j)
-            self.x.append(x_i)
-        print('Dimension of x is', len(self.x),
-              len(self.x[0]), len(self.x[0][0]))
+                    self.x[i, j, k] = self.solver.IntVar(0, 1, '')
 
-        self.y = []
+        self.y = {}
         for k in range(self.numOfVolunteers):
-            y_k = self.solver.IntVar(0, 1, '')
-            self.y.append(y_k)
-        print('Dimension of y is', len(self.y))
+            self.y[k] = self.solver.IntVar(0, 1, '')
+
+        self.u = {}
+        for i in range(1, self.numOfCities):
+            for k in range(self.numOfVolunteers):
+                self.u[i, k] = self.solver.IntVar(0, self.numOfCities, '')
+
+        self.z = {}
+        for i in range(1, self.numOfCities):
+            for k in range(self.numOfVolunteers):
+                self.z[i, k] = self.solver.IntVar(0, 1, '')
+        
+        self.n = {}
+        for k in range(self.numOfVolunteers):
+            self.n[k] = self.solver.IntVar(0, self.numOfCities, '')
 
         print('Number of variables =', self.solver.NumVariables())
 
@@ -343,40 +346,62 @@ class FourthQuestionModel(QuestionModel):
         for i in range(self.numOfCities):
             for j in range(self.numOfCities):
                 for k in range(self.numOfVolunteers):
-                    self.solver.Add(self.x[i][j][k] <= (self.numOfCities - 1) * self.y[k])
+                    #self.solver.Add(self.x[i][j][k] <= (self.numOfCities - 1) * self.y[k])
+                    self.solver.Add(self.x[i, j, k] <= self.y[k])
         
         # Each volunteer can travel at most 400 km
         for k in range(self.numOfVolunteers):
             distance_k = self.solver.Sum([self.solver.Sum(
-                [self.data[i][j] * self.x[i][j][k] for j in range(self.numOfCities)]) for i in range(self.numOfCities)])
+                [self.data[i][j] * self.x[i, j, k] for j in range(self.numOfCities)]) for i in range(self.numOfCities)])
             self.solver.Add(distance_k <= self.timeLimit *
                             self.speedOfSnowplow)
 
         # For volunteer k, it should go out from node 1 once if he works
         for k in range(self.numOfVolunteers):
             self.solver.Add(self.solver.Sum(
-                [self.x[0][j][k] for j in range(self.numOfCities)]) == self.y[k])
+                [self.x[0, j, k] for j in range(self.numOfCities)]) == self.y[k])
 
         # For volunteer k, it should come in to node 1 once if he works
         for k in range(self.numOfVolunteers):
             self.solver.Add(self.solver.Sum(
-                [self.x[i][0][k] for i in range(self.numOfCities)]) == self.y[k])
+                [self.x[i, 0, k] for i in range(self.numOfCities)]) == self.y[k])
 
-        # Each village should be visited at least 1 time
-        for j in range(self.numOfCities):
-            visit_j = self.solver.Sum([self.solver.Sum([self.x[i][j][k] for k in range(
-                self.numOfVolunteers)]) for i in range(self.numOfCities)])
-            self.solver.Add(visit_j >= 1)
-
-        # Each volunteer traverse a cycle
-        for j in range(self.numOfCities):
-            for k in range(self.numOfVolunteers):
-                self.solver.Add(self.solver.Sum([(self.x[i][j][k] - self.x[j][i][k]) for i in range(self.numOfCities)]) == 0)
-        
         # There is no road between node i and node i
         for i in range(self.numOfCities):
             for k in range(self.numOfVolunteers):
-                self.solver.Add(self.x[i][i][k] == 0)
+                self.solver.Add(self.x[i, i, k] == 0)
+
+        # Each village should be visited at least 1 time
+        for j in range(1, self.numOfCities):
+            for k in range(0, self.numOfVolunteers):
+                visit_j_k = self.solver.Sum([self.x[i, j, k] for i in range(self.numOfCities)])
+                self.solver.Add(visit_j_k == self.z[j, k])
+
+        for i in range(1, self.numOfCities):
+            for k in range(0, self.numOfVolunteers):
+                visit_i_k = self.solver.Sum([self.x[i, j, k] for j in range(self.numOfCities)])
+                self.solver.Add(visit_i_k == self.z[i, k])
+
+        for i in range(1, self.numOfCities):
+            for j in range(1, self.numOfCities):
+                for k in range(self.numOfVolunteers):
+                    self.solver.Add( (self.u[i, k] * self.z[i, k]) - (self.u[j, k] * self.z[j, k]) + (self.n[k] * self.x[i, j, k]) <= self.n[k] - self.y[k])
+        
+        for i in range(1, self.numOfCities):
+            for k in range(self.numOfVolunteers):
+                self.solver.Add(self.y[k] <= self.u[i, k])
+                self.solver.Add(self.u[i, k] <= self.n[k] - self.y[k])
+
+        
+        for k in range(self.numOfVolunteers):
+            self.solver.Add(self.solver.Sum([self.z[j, k] for j in range(1, self.numOfCities)]) >= self.y[k])
+        
+        for j in range(1, self.numOfCities):
+            self.solver.Add(self.solver.Sum([self.z[j, k] for k in range(self.numOfVolunteers)]) == 1)
+        
+        for k in range(self.numOfVolunteers):
+            self.solver.Add(self.solver.Sum([self.z[j, k] for j in range(1, self.numOfCities)] + [self.y[k]]) == self.n[k])
+
         
         self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum(
             [self.y[k] for k in range(self.numOfVolunteers)]))
@@ -400,18 +425,28 @@ class FourthQuestionModel(QuestionModel):
 
             print("The minumum distance a parent should work is = ",
                   self.solver.Objective().Value())
-            for k in range(self.numOfVolunteers):
+            """for k in range(self.numOfVolunteers):
                 # if chosen as center (with tolerance for floating point arithmetic)
                 if (self.y[k].solution_value() > 0.5):
-                    print("\nVolunteer %d is chosen as center" % (k + 1))
+                    print("\nVolunteer %d is chosen" % (k + 1))
                     print("\tEdges that volunteer traverses are => ", end="")
+                    print("Total distance is", self.solver.Sum([self.solver.Sum(
+                [self.data[i][j] * self.x[i][j][k] for j in range(self.numOfCities)]) for i in range(self.numOfCities)]).solution_value())
                 for i in range(self.numOfCities):
                     for j in range(self.numOfCities):
                         if (self.x[i][j][k].solution_value() > 0.5):
                             print(f'{i+1}, {j+1}', end="  -  ")
+
+                print('-------------------------')
+                for i in range(self.numOfCities - 1):
+                    for k in range(self.numOfVolunteers):
+                        if (self.u[i][k].solution_value() > 0.5):
+                            print(f'{i+2}, {self.u[i][k].solution_value()}', end="  -  ")"""
         else:
             print(
                 "Solver could not solve the problem 4. The given data could be infeasible...\n")
+            """print("The minumum distance a parent should work is = ",
+                  self.solver.Objective().Value())"""
 
         print("\n\n********* End of Problem 4 *********\n")
         printLock.release()
