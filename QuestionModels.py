@@ -306,7 +306,7 @@ class FourthQuestionModel(QuestionModel):
 
         # define model
         self.solver = pywraplp.Solver.CreateSolver("SCIP")
-        self.numOfCities = 11#len(self.data) # 30
+        self.numOfCities = len(self.data) # 30
         self.numOfVolunteers = self.numOfCities - 1 #(We can solve the problem at most 29 volunteer)
         self.speedOfSnowplow = 40 # Speed of the snowplow
         self.timeLimit = 10 # Santa wants volunteer to return to node 1 at most 10 hours
@@ -382,17 +382,23 @@ class FourthQuestionModel(QuestionModel):
                 visit_i_k = self.solver.Sum([self.x[i, j, k] for j in range(self.numOfCities)])
                 self.solver.Add(visit_i_k == self.z[i, k])
 
-        for i in range(1, self.numOfCities):
+        """for i in range(1, self.numOfCities):
             for j in range(1, self.numOfCities):
                 for k in range(self.numOfVolunteers):
                     u_z_i = self.u[i, k].solution_value() * self.z[i, k].solution_value()
                     u_z_j = self.u[j, k].solution_value() * self.z[j, k].solution_value()
                     n_x = self.n[k].solution_value() * self.x[i, j, k].solution_value()
-                    self.solver.Add( u_z_i - u_z_j + n_x <= self.n[k] - self.y[k])
+                    self.solver.Add( u_z_i - u_z_j + n_x <= self.n[k] - self.y[k])"""
+        
+        for i in range(1, self.numOfCities):
+            for j in range(1, self.numOfCities):
+                for k in range(self.numOfVolunteers):
+                    self.solver.Add( self.u[i, k] - self.u[j, k] + self.numOfCities*self.x[i, j, k] <= self.numOfCities - 1)
         
         for i in range(1, self.numOfCities):
             for k in range(self.numOfVolunteers):
-                self.solver.Add(self.y[k] <= self.u[i, k])
+                self.solver.Add(self.z[i, k] <= self.u[i, k])
+                self.solver.Add(self.z[i, k] * self.numOfCities >= self.u[i, k])
                 self.solver.Add(self.u[i, k] <= self.n[k] - self.y[k])
 
         
@@ -405,12 +411,18 @@ class FourthQuestionModel(QuestionModel):
         for k in range(self.numOfVolunteers):
             self.solver.Add(self.solver.Sum([self.z[j, k] for j in range(1, self.numOfCities)] + [self.y[k]]) == self.n[k])
 
-        
+        for k in range(1, self.numOfVolunteers):
+            self.solver.Add(self.y[k-1] >= self.y[k])
         self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum(
             [self.y[k] for k in range(self.numOfVolunteers)]))
 
+        print('Number of variables =', self.solver.NumConstraints())
         # create objective function
         self.solver.Minimize(self.exactNumOfVolunteers)
+
+        """self.solver.EnableOutput()
+        self.solver.SetNumThreads(32)
+        self.solver.SetTimeLimit(60000)"""
 
         # abstract method
 
