@@ -429,9 +429,9 @@ class FourthQuestionModel(QuestionModel):
         #    objective_terms.append(self.travelCost[i])
 
         for i in range(self.numOfCities):
-            objective_terms.append(self.fromCityToCity[i][0] * 100)
+            objective_terms.append(self.fromCityToCity[i][0])
 
-        self.solver.Minimize(self.solver.Sum(objective_terms))
+        self.solver.Minimize(self.numOfVolunteers)
 
         # self.solver.SetNumThreads(2)
 
@@ -455,18 +455,6 @@ class FourthQuestionModel(QuestionModel):
                     if (self.fromCityToCity[i][j].solution_value() > 0.5):
                         print("Road from %d to %d" % (i, j))
 
-            # for i in range(self.numOfCities):
-            #    print("Inventory at %d is => %d" %
-            #          (i, self.travelCost[i].solution_value()))
-            """for k in range(self.numOfVolunteers):
-                # if chosen as center (with tolerance for floating point arithmetic)
-                if (self.y[k].solution_value() > 0.5):
-                    print("\nVolunteer %d is chosen as center" % (k + 1))
-                    print("\tEdges that volunteer traverses are => ", end="")
-                for i in range(self.numOfCities):
-                    for j in range(self.numOfCities):
-                        if (self.x[i][j][k].solution_value() > 0.5):
-                            print(f'{i+1}, {j+1}', end="  -  ")"""
         else:
             print(
                 "Solver could not solve the problem 4. The given data could be infeasible...\n")
