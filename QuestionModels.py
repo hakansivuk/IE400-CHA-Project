@@ -311,39 +311,42 @@ class FourthQuestionModel(QuestionModel):
         # define model
         self.solver = pywraplp.Solver.CreateSolver(
             "SCIP")
-        self.numOfCities = len(self.data)  # 30
+        self.numOfCities = 10  # len(self.data)  # 30
 
         self.speedOfSnowplow = 40  # Speed of the snowplow
         self.timeLimit = 10  # Santa wants volunteer to return to node 1 at most 10 hours
-        self.distanceLimit = self.speedOfSnowplow * self.timeLimit
+        self.maxDistanceLimit = self.speedOfSnowplow * self.timeLimit
 
         # DEFINE VARIABLES
         infinity = self.solver.infinity()
 
         # to minimize
-        # self.numOfVolunteers = self.solver.IntVar(1, self.numOfCities - 1, "")
+        self.numOfVolunteers = self.solver.IntVar(1, self.numOfCities - 1, "")
 
         # i stole it from abe
-        self.u = {}
-        for j in range(1, self.numOfCities):
-            self.u[j] = self.solver.NumVar(0, infinity, '')
+        #self.u = {}
+        # for j in range(1, self.numOfCities):
+        #    self.u[j] = self.solver.NumVar(0, infinity, '')
 
         # decision
-        self.y = self.solver.IntVar(0, 1, "")
-        self.M = 1
+        #self.y = self.solver.IntVar(0, 1, "")
+        #self.M = 1
 
         # inventory
-        self.travelCost = []
-        for j in range(self.numOfCities):
-            self.travelCost.append(
-                self.solver.NumVar(0, infinity, ''))
+        #self.travelCost = []
+        # for j in range(self.numOfCities):
+        #    self.travelCost.append(
+        #        self.solver.NumVar(0, infinity, ''))
 
         # if city j is visited after visiting city i, if we arrive city j from city i => fromToCity[i][j] = 1
         self.fromCityToCity = []
+        self.remDistance = []
         for i in range(self.numOfCities):
             self.fromCityToCity.append([])
+            self.remDistance.append([])
             for j in range(self.numOfCities):
                 self.fromCityToCity[i].append(self.solver.IntVar(0, 1, ""))
+                self.remDistance[i].append(self.solver.NumVar(0, infinity, ''))
 
         # DEFINE CONSTRAINTS
 
@@ -361,21 +364,42 @@ class FourthQuestionModel(QuestionModel):
         self.solver.Add(self.solver.Sum(
             [self.fromCityToCity[i][i] for i in range(self.numOfCities)]) <= 0)
 
-        # all vehicles must return
-        # self.solver.Add(self.solver.Sum(
-        #    [self.fromCityToCity[0][j] for j in range(self.numOfCities)]) == 20)
-
+        # if m vehcles leave
         self.solver.Add(self.solver.Sum(
-            [self.fromCityToCity[0][j] for j in range(self.numOfCities)]) == self.solver.Sum(
-            [self.fromCityToCity[i][0] for i in range(self.numOfCities)]))
+            [self.fromCityToCity[0][j] for j in range(self.numOfCities)]) == self.numOfVolunteers)
+
+        # m vehicles return
+        self.solver.Add(self.solver.Sum(
+            [self.fromCityToCity[i][0] for i in range(self.numOfCities)]) == self.numOfVolunteers)
+
+        # DISTANCE CONSTRAINTS
+
+        for i in range(self.numOfCities):
+            for j in range(self.numOfCities):
+                self.solver.Add(
+                    self.remDistance[i][j] <= self.maxDistanceLimit * self.fromCityToCity[i][j])
+
+        for i in range(1, self.numOfCities):
+            self.solver.Add(self.remDistance[0][i] == (self.maxDistanceLimit *
+                                                       self.fromCityToCity[0][i]) - (self.data[0][i] * self.fromCityToCity[0][i]))
+
+        for i in range(1, self.numOfCities):
+            rowSum = [self.remDistance[i][j]
+                      for j in range(self.numOfCities) if j != i]
+            colSum = [self.remDistance[j][i]
+                      for j in range(self.numOfCities) if j != i]
+            distance = [self.fromCityToCity[i][j] * self.data[i][j]
+                        for j in range(self.numOfCities)]
+            self.solver.Add(self.solver.Sum(
+                rowSum) - self.solver.Sum(colSum) + self.solver.Sum(distance) == 0)
 
         # inventory constraints
-        for i in range(self.numOfCities):
-            for j in range(1, self.numOfCities):
-                self.solver.Add(
-                    self.travelCost[j] - (self.data[i][j] * self.fromCityToCity[i][j] + self.travelCost[i]) <= self.M * self.y)
-                self.solver.Add(
-                    self.fromCityToCity[i][j] <= self.M * (self.y - 1))
+        # for i in range(self.numOfCities):
+        #    for j in range(1, self.numOfCities):
+        #        self.solver.Add(
+        #            self.travelCost[j] - (self.data[i][j] * self.fromCityToCity[i][j] + self.travelCost[i]) <= self.M * self.y)
+        #        self.solver.Add(
+        #            self.fromCityToCity[i][j] <= self.M * (self.y - 1))
 
         # MTZ
         # for i in range(1, self.numOfCities):
@@ -385,14 +409,14 @@ class FourthQuestionModel(QuestionModel):
         #                self.u[i] - self.u[j] + self.numOfCities*self.fromCityToCity[i][j] <= self.numOfCities - 1)
 
         # base travel cost
-        self.solver.Add(
-            self.travelCost[0] == 0)
+        # self.solver.Add(
+        #    self.travelCost[0] == 0)
 
-        for i in range(self.numOfCities):
-            self.solver.Add(
-                self.distanceLimit - (self.fromCityToCity[i][0] * self.data[i][0] + self.travelCost[i]) <= self.M * self.y)
-            self.solver.Add(
-                self.fromCityToCity[i][0] <= self.M * (self.y - 1))
+        # for i in range(self.numOfCities):
+        #    self.solver.Add(
+        #        self.distanceLimit - (self.fromCityToCity[i][0] * self.data[i][0] + self.travelCost[i]) <= self.M * self.y)
+        #    self.solver.Add(
+        #        self.fromCityToCity[i][0] <= self.M * (self.y - 1))
 
         # create objective function
         # self.solver.Minimize(self.numOfVolunteers)
@@ -405,13 +429,11 @@ class FourthQuestionModel(QuestionModel):
         #    objective_terms.append(self.travelCost[i])
 
         for i in range(self.numOfCities):
-            objective_terms.append(self.fromCityToCity[i][0])
+            objective_terms.append(self.fromCityToCity[i][0] * 100)
 
         self.solver.Minimize(self.solver.Sum(objective_terms))
 
-        self.solver.EnableOutput()
-        self.solver.SetNumThreads(32)
-        self.solver.SetTimeLimit(10000)
+        # self.solver.SetNumThreads(2)
 
     # override method
     def runModel(self, printLock):
@@ -433,9 +455,9 @@ class FourthQuestionModel(QuestionModel):
                     if (self.fromCityToCity[i][j].solution_value() > 0.5):
                         print("Road from %d to %d" % (i, j))
 
-            for i in range(self.numOfCities):
-                print("Inventory at %d is => %d" %
-                      (i, self.travelCost[i].solution_value()))
+            # for i in range(self.numOfCities):
+            #    print("Inventory at %d is => %d" %
+            #          (i, self.travelCost[i].solution_value()))
             """for k in range(self.numOfVolunteers):
                 # if chosen as center (with tolerance for floating point arithmetic)
                 if (self.y[k].solution_value() > 0.5):
