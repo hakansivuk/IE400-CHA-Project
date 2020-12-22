@@ -1,6 +1,7 @@
 import pandas as pd
 from ortools.linear_solver import pywraplp
 from QuestionModel import QuestionModel
+import time
 
 
 class FirstQuestionModel(QuestionModel):
@@ -311,7 +312,7 @@ class FourthQuestionModel(QuestionModel):
         # define model
         self.solver = pywraplp.Solver.CreateSolver(
             "SCIP")
-        self.numOfCities = 10  # len(self.data)  # 30
+        self.numOfCities = len(self.data)  # 30
 
         self.speedOfSnowplow = 40  # Speed of the snowplow
         self.timeLimit = 10  # Santa wants volunteer to return to node 1 at most 10 hours
@@ -431,13 +432,16 @@ class FourthQuestionModel(QuestionModel):
         for i in range(self.numOfCities):
             objective_terms.append(self.fromCityToCity[i][0])
 
+        print('Number of constraints = ', self.solver.NumConstraints())
+
         self.solver.Minimize(self.numOfVolunteers)
 
-        # self.solver.SetNumThreads(2)
+        self.solver.SetNumThreads(8)
 
     # override method
     def runModel(self, printLock):
 
+        init_time = time.time()
         # run the model
         status = self.solver.Solve()
 
@@ -446,6 +450,9 @@ class FourthQuestionModel(QuestionModel):
         print("\n********* Start of Problem 4 *********\n")
 
         if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
+
+            end_time = time.time()
+            print('Elapsed time:', end_time - init_time)
 
             print("The minumum number of helpers is = ",
                   self.solver.Objective().Value())
