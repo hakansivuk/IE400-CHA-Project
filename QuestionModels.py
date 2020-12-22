@@ -1,6 +1,7 @@
 import pandas as pd
 from ortools.linear_solver import pywraplp
 from QuestionModel import QuestionModel
+import time
 
 
 class FirstQuestionModel(QuestionModel):
@@ -306,13 +307,13 @@ class FourthQuestionModel(QuestionModel):
 
         # define model
         self.solver = pywraplp.Solver.CreateSolver("SCIP")
-        self.numOfCities = len(self.data) # 30
+        self.numOfCities = 20#len(self.data) # 30
         self.numOfVolunteers = self.numOfCities - 1 #(We can solve the problem at most 29 volunteer)
         self.speedOfSnowplow = 40 # Speed of the snowplow
         self.timeLimit = 10 # Santa wants volunteer to return to node 1 at most 10 hours
 
         # define variables
-        self.exactNumOfVolunteers = self.solver.IntVar(1, self.numOfVolunteers, '') # Sum of y_k
+        #self.exactNumOfVolunteers = self.solver.IntVar(1, self.numOfVolunteers, '') # Sum of y_k
 
         self.x = {} # x[i][j][k]: number of times the volunteer k uses the road from village i to village j
         for i in range(self.numOfCities):
@@ -327,7 +328,7 @@ class FourthQuestionModel(QuestionModel):
         self.u = {}
         for i in range(1, self.numOfCities):
             for k in range(self.numOfVolunteers):
-                self.u[i, k] = self.solver.IntVar(0, self.numOfCities, '')
+                self.u[i, k] = self.solver.IntVar(0, self.numOfCities - 1, '')
 
         self.z = {}
         for i in range(1, self.numOfCities):
@@ -343,11 +344,15 @@ class FourthQuestionModel(QuestionModel):
         # define constraints
 
         # x[i][j][k] <= 29 * y[k] for all i, j, k
-        for i in range(self.numOfCities):
+        """for i in range(self.numOfCities):
             for j in range(self.numOfCities):
                 for k in range(self.numOfVolunteers):
                     #self.solver.Add(self.x[i][j][k] <= (self.numOfCities - 1) * self.y[k])
-                    self.solver.Add(self.x[i, j, k] <= self.y[k])
+                    self.solver.Add(self.x[i, j, k] <= self.y[k])"""
+        
+        for k in range(self.numOfVolunteers):
+            #self.solver.Add(self.x[i][j][k] <= (self.numOfCities - 1) * self.y[k])
+            self.solver.Add(self.solver.Sum([self.solver.Sum([self.x[i, j, k] for j in range(self.numOfCities)]) for i in range(self.numOfCities)]) <= self.numOfCities * self.y[k])
         
         # Each volunteer can travel at most 400 km
         for k in range(self.numOfVolunteers):
@@ -367,9 +372,11 @@ class FourthQuestionModel(QuestionModel):
                 [self.x[i, 0, k] for i in range(self.numOfCities)]) == self.y[k])
 
         # There is no road between node i and node i
-        for i in range(self.numOfCities):
+        """for i in range(self.numOfCities):
             for k in range(self.numOfVolunteers):
-                self.solver.Add(self.x[i, i, k] == 0)
+                self.solver.Add(self.x[i, i, k] == 0)"""
+        for i in range(self.numOfCities):
+            self.solver.Add(self.solver.Sum([self.x[i, i, k] for k in range(self.numOfVolunteers)]) == 0)
 
         # Each village should be visited at least 1 time
         for j in range(1, self.numOfCities):
@@ -400,7 +407,6 @@ class FourthQuestionModel(QuestionModel):
                 self.solver.Add(self.z[i, k] <= self.u[i, k])
                 self.solver.Add(self.z[i, k] * self.numOfCities >= self.u[i, k])
                 self.solver.Add(self.u[i, k] <= self.n[k] - self.y[k])
-
         
         for k in range(self.numOfVolunteers):
             self.solver.Add(self.solver.Sum([self.z[j, k] for j in range(1, self.numOfCities)]) >= self.y[k])
@@ -413,16 +419,20 @@ class FourthQuestionModel(QuestionModel):
 
         for k in range(1, self.numOfVolunteers):
             self.solver.Add(self.y[k-1] >= self.y[k])
-        self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum(
-            [self.y[k] for k in range(self.numOfVolunteers)]))
+        """self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum(
+            [self.y[k] for k in range(self.numOfVolunteers)]))"""
 
-        print('Number of variables =', self.solver.NumConstraints())
+        print('Number of constraints =', self.solver.NumConstraints())
         # create objective function
-        self.solver.Minimize(self.exactNumOfVolunteers)
+        #self.solver.Minimize(self.exactNumOfVolunteers)
+        objective_term = []
+        for k in range(self.numOfVolunteers):
+            objective_term.append(self.y[k])
+        self.solver.Minimize(self.solver.Sum(objective_term))
 
-        """self.solver.EnableOutput()
-        self.solver.SetNumThreads(32)
-        self.solver.SetTimeLimit(60000)"""
+        #self.solver.EnableOutput()
+        self.solver.SetNumThreads(8)
+        #self.solver.SetTimeLimit(60000)
 
         # abstract method
 
@@ -430,6 +440,7 @@ class FourthQuestionModel(QuestionModel):
     def runModel(self, printLock):
 
         # run the model
+        init_time = time.time()
         status = self.solver.Solve()
 
         # print the result
@@ -437,7 +448,8 @@ class FourthQuestionModel(QuestionModel):
         print("\n********* Start of Problem 4 *********\n")
 
         if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
-
+            end_time = time.time()
+            print('Elapsed time:', end_time - init_time)
             print("The minumum distance a parent should work is = ",
                   self.solver.Objective().Value())
             for k in range(self.numOfVolunteers):
