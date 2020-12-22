@@ -1,6 +1,7 @@
 import pandas as pd
 from ortools.linear_solver import pywraplp
 from QuestionModel import QuestionModel
+import time
 
 
 class FirstQuestionModel(QuestionModel):
@@ -241,12 +242,16 @@ class ThirdQuestionModel(QuestionModel):
         # each city entered once.
         for i in range(self.numOfCities):
             self.solver.Add(self.solver.Sum(
-                [self.x[i, j] for j in range(self.numOfCities)]) == 2)
+                [self.x[i, j] for j in range(self.numOfCities)]) == 1)
 
         # each city exited once.
         for j in range(self.numOfCities):
             self.solver.Add(self.solver.Sum(
-                [self.x[i, j] for i in range(self.numOfCities)]) == 2)
+                [self.x[i, j] for i in range(self.numOfCities)]) == 1)
+
+        # diagonal must be 0
+        self.solver.Add(self.solver.Sum(
+            [self.x[i, i] for i in range(self.numOfCities)]) == 0)
 
         # MTZ constraint
         for i in range(1, self.numOfCities):
@@ -305,90 +310,138 @@ class FourthQuestionModel(QuestionModel):
     def configureModel(self):
 
         # define model
-        self.solver = pywraplp.Solver.CreateSolver("SCIP")
-        self.numOfCities = len(self.data) # 30
-        self.numOfVolunteers = self.numOfCities - 1 # 29 (We can solve the problem at most 29 volunteer)
-        self.speedOfSnowplow = 40 # Speed of the snowplow
-        self.timeLimit = 10 # Santa wants volunteer to return to node 1 at most 10 hours
+        self.solver = pywraplp.Solver.CreateSolver(
+            "SCIP")
+        self.numOfCities = len(self.data)  # 30
 
-        # define variables
+        self.speedOfSnowplow = 40  # Speed of the snowplow
+        self.timeLimit = 10  # Santa wants volunteer to return to node 1 at most 10 hours
+        self.maxDistanceLimit = self.speedOfSnowplow * self.timeLimit
+
+        # DEFINE VARIABLES
         infinity = self.solver.infinity()
 
-        self.exactNumOfVolunteers = self.solver.IntVar(0, self.numOfVolunteers, '') # Sum of y_k
+        # to minimize
+        self.numOfVolunteers = self.solver.IntVar(1, self.numOfCities - 1, "")
 
-        self.x = [] # x[i][j][k]: number of times the volunteer k uses the road from village i to village j
+        # i stole it from abe
+        #self.u = {}
+        # for j in range(1, self.numOfCities):
+        #    self.u[j] = self.solver.NumVar(0, infinity, '')
+
+        # decision
+        #self.y = self.solver.IntVar(0, 1, "")
+        #self.M = 1
+
+        # inventory
+        #self.travelCost = []
+        # for j in range(self.numOfCities):
+        #    self.travelCost.append(
+        #        self.solver.NumVar(0, infinity, ''))
+
+        # if city j is visited after visiting city i, if we arrive city j from city i => fromToCity[i][j] = 1
+        self.fromCityToCity = []
+        self.remDistance = []
         for i in range(self.numOfCities):
-            x_i = []
+            self.fromCityToCity.append([])
+            self.remDistance.append([])
             for j in range(self.numOfCities):
-                x_i_j = []
-                for k in range(self.numOfVolunteers):
-                    x_i_j_k = self.solver.IntVar(0, self.numOfCities, '')
-                    x_i_j.append(x_i_j_k)
-                x_i.append(x_i_j)
-            self.x.append(x_i)
-        print('Dimension of x is', len(self.x),
-              len(self.x[0]), len(self.x[0][0]))
+                self.fromCityToCity[i].append(self.solver.IntVar(0, 1, ""))
+                self.remDistance[i].append(self.solver.NumVar(0, infinity, ''))
 
-        self.y = []
-        for k in range(self.numOfVolunteers):
-            y_k = self.solver.IntVar(0, 1, '')
-            self.y.append(y_k)
-        print('Dimension of y is', len(self.y))
+        # DEFINE CONSTRAINTS
 
-        print('Number of variables =', self.solver.NumVariables())
+        # we enter each city once except the route node
+        for i in range(1, self.numOfCities):
+            self.solver.Add(self.solver.Sum(
+                [self.fromCityToCity[i][j] for j in range(self.numOfCities)]) == 1)
 
-        # define constraints
+        # we leave each city once except route node
+        for j in range(1, self.numOfCities):
+            self.solver.Add(self.solver.Sum(
+                [self.fromCityToCity[i][j] for i in range(self.numOfCities)]) == 1)
 
-        # x[i][j][k] <= 29 * y[k] for all i, j, k
+        # diagonal must be 0
+        self.solver.Add(self.solver.Sum(
+            [self.fromCityToCity[i][i] for i in range(self.numOfCities)]) <= 0)
+
+        # if m vehcles leave
+        self.solver.Add(self.solver.Sum(
+            [self.fromCityToCity[0][j] for j in range(self.numOfCities)]) == self.numOfVolunteers)
+
+        # m vehicles return
+        self.solver.Add(self.solver.Sum(
+            [self.fromCityToCity[i][0] for i in range(self.numOfCities)]) == self.numOfVolunteers)
+
+        # DISTANCE CONSTRAINTS
+
         for i in range(self.numOfCities):
             for j in range(self.numOfCities):
-                for k in range(self.numOfVolunteers):
-                    self.solver.Add(self.x[i][j][k] <= (self.numOfCities - 1) * self.y[k])
-        
-        # Each volunteer can travel at most 400 km
-        for k in range(self.numOfVolunteers):
-            distance_k = self.solver.Sum([self.solver.Sum(
-                [self.data[i][j] * self.x[i][j][k] for j in range(self.numOfCities)]) for i in range(self.numOfCities)])
-            self.solver.Add(distance_k <= self.timeLimit *
-                            self.speedOfSnowplow)
+                self.solver.Add(
+                    self.remDistance[i][j] <= self.maxDistanceLimit * self.fromCityToCity[i][j])
 
-        # For volunteer k, it should go out from node 1 once if he works
-        for k in range(self.numOfVolunteers):
+        for i in range(1, self.numOfCities):
+            self.solver.Add(self.remDistance[0][i] == (self.maxDistanceLimit *
+                                                       self.fromCityToCity[0][i]) - (self.data[0][i] * self.fromCityToCity[0][i]))
+
+        for i in range(1, self.numOfCities):
+            rowSum = [self.remDistance[i][j]
+                      for j in range(self.numOfCities) if j != i]
+            colSum = [self.remDistance[j][i]
+                      for j in range(self.numOfCities) if j != i]
+            distance = [self.fromCityToCity[i][j] * self.data[i][j]
+                        for j in range(self.numOfCities)]
             self.solver.Add(self.solver.Sum(
-                [self.x[0][j][k] for j in range(self.numOfCities)]) == self.y[k])
+                rowSum) - self.solver.Sum(colSum) + self.solver.Sum(distance) == 0)
 
-        # For volunteer k, it should come in to node 1 once if he works
-        for k in range(self.numOfVolunteers):
-            self.solver.Add(self.solver.Sum(
-                [self.x[i][0][k] for i in range(self.numOfCities)]) == self.y[k])
+        # inventory constraints
+        # for i in range(self.numOfCities):
+        #    for j in range(1, self.numOfCities):
+        #        self.solver.Add(
+        #            self.travelCost[j] - (self.data[i][j] * self.fromCityToCity[i][j] + self.travelCost[i]) <= self.M * self.y)
+        #        self.solver.Add(
+        #            self.fromCityToCity[i][j] <= self.M * (self.y - 1))
 
-        # Each village should be visited at least 1 time
-        for j in range(self.numOfCities):
-            visit_j = self.solver.Sum([self.solver.Sum([self.x[i][j][k] for k in range(
-                self.numOfVolunteers)]) for i in range(self.numOfCities)])
-            self.solver.Add(visit_j >= 1)
+        # MTZ
+        # for i in range(1, self.numOfCities):
+        #    for j in range(1, self.numOfCities):
+        #        if i != j:
+        #            self.solver.Add(
+        #                self.u[i] - self.u[j] + self.numOfCities*self.fromCityToCity[i][j] <= self.numOfCities - 1)
 
-        # Each volunteer traverse a cycle
-        for j in range(self.numOfCities):
-            for k in range(self.numOfVolunteers):
-                self.solver.Add(self.solver.Sum([(self.x[i][j][k] - self.x[j][i][k]) for i in range(self.numOfCities)]) == 0)
-        
-        # There is no road between node i and node i
-        for i in range(self.numOfCities):
-            for k in range(self.numOfVolunteers):
-                self.solver.Add(self.x[i][i][k] == 0)
-        
-        self.solver.Add(self.exactNumOfVolunteers == self.solver.Sum(
-            [self.y[k] for k in range(self.numOfVolunteers)]))
+        # base travel cost
+        # self.solver.Add(
+        #    self.travelCost[0] == 0)
+
+        # for i in range(self.numOfCities):
+        #    self.solver.Add(
+        #        self.distanceLimit - (self.fromCityToCity[i][0] * self.data[i][0] + self.travelCost[i]) <= self.M * self.y)
+        #    self.solver.Add(
+        #        self.fromCityToCity[i][0] <= self.M * (self.y - 1))
 
         # create objective function
-        self.solver.Minimize(self.exactNumOfVolunteers)
+        # self.solver.Minimize(self.numOfVolunteers)
 
-        # abstract method
+        # self.solver.Minimize(self.solver.Sum(
+        #    [self.fromCityToCity[0][j] * 3000 for j in range(self.numOfCities)]))
+
+        objective_terms = []
+        # for i in range(1, self.numOfCities):
+        #    objective_terms.append(self.travelCost[i])
+
+        for i in range(self.numOfCities):
+            objective_terms.append(self.fromCityToCity[i][0])
+
+        print('Number of constraints = ', self.solver.NumConstraints())
+
+        self.solver.Minimize(self.numOfVolunteers)
+
+        self.solver.SetNumThreads(8)
 
     # override method
     def runModel(self, printLock):
 
+        init_time = time.time()
         # run the model
         status = self.solver.Solve()
 
@@ -398,17 +451,17 @@ class FourthQuestionModel(QuestionModel):
 
         if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
 
-            print("The minumum distance a parent should work is = ",
+            end_time = time.time()
+            print('Elapsed time:', end_time - init_time)
+
+            print("The minumum number of helpers is = ",
                   self.solver.Objective().Value())
-            for k in range(self.numOfVolunteers):
-                # if chosen as center (with tolerance for floating point arithmetic)
-                if (self.y[k].solution_value() > 0.5):
-                    print("\nVolunteer %d is chosen as center" % (k + 1))
-                    print("\tEdges that volunteer traverses are => ", end="")
-                for i in range(self.numOfCities):
-                    for j in range(self.numOfCities):
-                        if (self.x[i][j][k].solution_value() > 0.5):
-                            print(f'{i+1}, {j+1}', end="  -  ")
+
+            for i in range(self.numOfCities):
+                for j in range(self.numOfCities):
+                    if (self.fromCityToCity[i][j].solution_value() > 0.5):
+                        print("Road from %d to %d" % (i, j))
+
         else:
             print(
                 "Solver could not solve the problem 4. The given data could be infeasible...\n")
