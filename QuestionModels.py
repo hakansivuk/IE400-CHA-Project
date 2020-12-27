@@ -44,7 +44,7 @@ class FirstQuestionModel(QuestionModel):
         # If a village is chosen as center
         for i in range(self.numOfCities):
             self.solver.Add(self.solver.Sum(
-                [self.centerAssignment[i][j] for j in range(self.numOfCities)]) <= 20 * self.center[i])
+                [self.centerAssignment[i][j] for j in range(self.numOfCities)]) <= self.numOfCities * self.center[i])
 
         # only a single center is assigned to a village
         for j in range(self.numOfCities):
@@ -108,7 +108,7 @@ class FirstQuestionModel(QuestionModel):
 
         if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
 
-            print("The minumum distance a parent should work is = ",
+            print("The minumum distance a parent should walk is = ",
                   self.solver.Objective().Value())
             for i in range(self.numOfCities):
                 # if chosen as center (with tolerance for floating point arithmetic)
@@ -426,6 +426,10 @@ class FourthQuestionModel(QuestionModel):
         #    [self.fromCityToCity[0][j] * 3000 for j in range(self.numOfCities)]))
 
         objective_terms = []
+        for i in range(self.numOfCities):
+            for j in range(self.numOfCities):
+                objective_terms.append(
+                    self.fromCityToCity[i][j] * self.data[i][j])
         # for i in range(1, self.numOfCities):
         #    objective_terms.append(self.travelCost[i])
 
@@ -435,8 +439,10 @@ class FourthQuestionModel(QuestionModel):
         print('Number of constraints = ', self.solver.NumConstraints())
 
         self.solver.Minimize(self.numOfVolunteers)
+        # self.solver.Minimize(self.solver.Sum(
+        #    objective_terms) + self.numOfVolunteers * 5000)
 
-        self.solver.SetNumThreads(8)
+        self.solver.SetNumThreads(4)
 
     # override method
     def runModel(self, printLock):
