@@ -200,7 +200,7 @@ class SecondQuestionModel(QuestionModel):
 
         if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
 
-            print("The minumum distance a parent should work is = ",
+            print("The minumum distance a parent should walk is = ",
                   self.solver.Objective().Value())
             for i in range(self.numOfCities):
                 # if chosen as center (with tolerance for floating point arithmetic)
@@ -458,7 +458,7 @@ class FourthQuestionModel(QuestionModel):
         if (status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE):
 
             end_time = time.time()
-            print('Elapsed time:', end_time - init_time)
+            #print('Elapsed time:', end_time - init_time)
 
             print("The minumum number of helpers is = ",
                   self.solver.Objective().Value())
