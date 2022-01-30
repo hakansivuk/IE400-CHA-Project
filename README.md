@@ -2,7 +2,7 @@
 
   
 
-This project aims to solve linear integer problems with respect to a set of problems. //TODO define the problem a little bit more
+This project aims to solve linear integer problems with respect to a set of problems. Problems are different variations of well-known travelling salesman problem. Details can be found from [HW File](https://github.com/hakansivuk/IE400-CHA-Project/blob/main/IE400-Project-Fall2020-2021.pdf) 
 
   
 
